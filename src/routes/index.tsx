@@ -47,7 +47,7 @@ export const Route = createFileRoute("/")({
 type AppState = "empty" | "loading" | "loaded" | "error";
 type Selection = "face" | "edge" | "vertex" | "body" | null;
 
-const sectionStats = [
+const sectionStats: Array<[string, string]> = [
   ["Bodies", "1"], ["Shells", "1"], ["Faces", "48"], ["Edges", "112"], ["Vertices", "64"],
 ];
 
@@ -59,6 +59,7 @@ const geometry: Record<Exclude<Selection, null>, Array<[string, string]>> = {
 };
 
 const selectionName: Record<Exclude<Selection, null>, string> = { face: "Face #32", edge: "Edge #72", vertex: "Vertex #18", body: "Body #1" };
+const selectionTypeName: Record<Exclude<Selection, null>, string> = { face: "Face", edge: "Edge", vertex: "Vertex", body: "Shell / Body" };
 
 function Index() {
   const [appState, setAppState] = useState<AppState>("empty");
@@ -68,7 +69,7 @@ function Index() {
   const [wireframe, setWireframe] = useState(false);
   const [edges, setEdges] = useState(true);
   const [progress, setProgress] = useState(0);
-  const [sections, setSections] = useState<Record<string, boolean>>({ model: true, summary: true, features: true, tree: true });
+  const [sections, setSections] = useState<Record<"model" | "summary" | "features" | "tree", boolean>>({ model: true, summary: true, features: true, tree: true });
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -87,7 +88,7 @@ function Index() {
 
   const upload = () => { setSelection(null); setProgress(0); setAppState("loading"); };
   const reset = () => { setAppState("empty"); setSelection(null); setProgress(0); setWireframe(false); setEdges(true); };
-  const toggleSection = (key: string) => setSections((current) => ({ ...current, [key]: !current[key] }));
+  const toggleSection = (key: keyof typeof sections) => setSections((current) => ({ ...current, [key]: !current[key] }));
 
   return (
     <TooltipProvider delayDuration={350}>
@@ -153,7 +154,7 @@ function PanelToggle({ side, open, onClick }: { side: "left" | "right"; open: bo
 
 function CollapsedRail({ icon: Icon, label }: { icon: typeof Layers3; label: string }) { return <div className="flex h-full flex-col items-center pt-14"><Icon className="size-4 text-muted-foreground" /><span className="mt-3 text-[10px] font-semibold uppercase text-muted-foreground [writing-mode:vertical-rl]">{label}</span></div>; }
 
-function PanelSection({ title, sectionKey, open, onToggle, children }: { title: string; sectionKey: string; open?: boolean; onToggle: (key: string) => void; children: React.ReactNode }) {
+function PanelSection({ title, sectionKey, open, onToggle, children }: { title: string; sectionKey: "model" | "summary" | "features" | "tree"; open: boolean; onToggle: (key: "model" | "summary" | "features" | "tree") => void; children: React.ReactNode }) {
   return <section className="border-b border-border"><button className="flex h-10 w-full items-center justify-between px-4 text-left text-[10px] font-semibold uppercase text-muted-foreground hover:bg-muted" onClick={() => onToggle(sectionKey)}><span>{title}</span>{open ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}</button>{open && children}</section>;
 }
 
@@ -205,7 +206,7 @@ function ModelGraphic({ selection, wireframe, edges, onSelect }: { selection: Se
 function Inspector({ appState, selection, setSelection }: { appState: AppState; selection: Selection; setSelection: (value: Selection) => void }) {
   if (appState !== "loaded" || !selection) return <div className="flex h-full flex-col pt-10"><div className="border-b border-border px-4 pb-3 text-[10px] font-semibold uppercase text-muted-foreground">Inspector</div><div className="grid flex-1 place-items-center px-8 text-center"><div><Crosshair className="mx-auto mb-3 size-5 text-muted-foreground" /><p className="text-xs leading-5 text-muted-foreground">Click on the model to inspect an element.</p></div></div></div>;
   const title = selectionName[selection];
-  return <div className="flex h-full flex-col pt-10"><div className="flex items-center gap-2 border-b border-border px-4 pb-3"><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Current selection</p><p className="mt-1 text-sm font-semibold">{title}</p></div><Button className="ml-auto" variant="ghost" size="icon" aria-label="Clear selection" onClick={() => setSelection(null)}><X /></Button></div><Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col"><TabsList className="h-auto w-full justify-start gap-0 overflow-x-auto rounded-none border-b border-border bg-transparent p-0"><Tab value="overview" label="Overview" /><Tab value="geometry" label="Geometry" /><Tab value="topology" label="Topology" /><Tab value="feature" label="Feature" /><Tab value="diagnostics" label="Diagnostics" /></TabsList><div className="min-h-0 flex-1 overflow-y-auto p-4"><TabsContent value="overview" className="m-0"><InspectorRows rows={[["Selection type", selection === "body" ? "Shell / Body" : selection[0].toUpperCase() + selection.slice(1)], ["Internal ID", title], ["Source file", "bracket_rev04.step"], ["Model units", "Millimeters (mm)"]]} /></TabsContent><TabsContent value="geometry" className="m-0"><InspectorRows rows={geometry[selection]} clickable /></TabsContent><TabsContent value="topology" className="m-0"><p className="section-label">Relationships</p><div className="mt-3 border-l border-border pl-3 text-xs leading-7"><button className="block text-primary hover:underline">Body #1</button><button className="ml-3 block text-primary hover:underline">Shell #1</button><span className="ml-6 block font-medium">{title}</span><button className="ml-9 block text-primary hover:underline">Adjacent entities (3)</button></div></TabsContent><TabsContent value="feature" className="m-0">{selection === "face" || selection === "edge" ? <><p className="section-label">Linked feature</p><button className="mt-3 flex w-full items-center justify-between border border-border p-3 text-xs hover:border-primary hover:bg-selected"><span>Part of: <strong>Chamfer #3</strong></span><ChevronRight className="size-4" /></button></> : <p className="py-8 text-center text-xs text-muted-foreground">No feature associated</p>}</TabsContent><TabsContent value="diagnostics" className="m-0"><div className="py-8 text-center"><Eye className="mx-auto mb-3 size-5 text-success" /><p className="text-xs font-medium">No issues detected</p><p className="mt-1 text-xs text-muted-foreground">This entity passed all topology checks.</p></div></TabsContent></div></Tabs><div className="border-t border-border px-4 py-2 text-[10px] text-muted-foreground">Press <kbd className="border border-border bg-muted px-1">Esc</kbd> to clear selection</div></div>;
+  return <div className="flex h-full flex-col pt-10"><div className="flex items-center gap-2 border-b border-border px-4 pb-3"><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Current selection</p><p className="mt-1 text-sm font-semibold">{title}</p></div><Button className="ml-auto" variant="ghost" size="icon" aria-label="Clear selection" onClick={() => setSelection(null)}><X /></Button></div><Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col"><TabsList className="h-auto w-full justify-start gap-0 overflow-x-auto rounded-none border-b border-border bg-transparent p-0"><Tab value="overview" label="Overview" /><Tab value="geometry" label="Geometry" /><Tab value="topology" label="Topology" /><Tab value="feature" label="Feature" /><Tab value="diagnostics" label="Diagnostics" /></TabsList><div className="min-h-0 flex-1 overflow-y-auto p-4"><TabsContent value="overview" className="m-0"><InspectorRows rows={[["Selection type", selectionTypeName[selection]], ["Internal ID", title], ["Source file", "bracket_rev04.step"], ["Model units", "Millimeters (mm)"]]} /></TabsContent><TabsContent value="geometry" className="m-0"><InspectorRows rows={geometry[selection]} clickable /></TabsContent><TabsContent value="topology" className="m-0"><p className="section-label">Relationships</p><div className="mt-3 border-l border-border pl-3 text-xs leading-7"><button className="block text-primary hover:underline">Body #1</button><button className="ml-3 block text-primary hover:underline">Shell #1</button><span className="ml-6 block font-medium">{title}</span><button className="ml-9 block text-primary hover:underline">Adjacent entities (3)</button></div></TabsContent><TabsContent value="feature" className="m-0">{selection === "face" || selection === "edge" ? <><p className="section-label">Linked feature</p><button className="mt-3 flex w-full items-center justify-between border border-border p-3 text-xs hover:border-primary hover:bg-selected"><span>Part of: <strong>Chamfer #3</strong></span><ChevronRight className="size-4" /></button></> : <p className="py-8 text-center text-xs text-muted-foreground">No feature associated</p>}</TabsContent><TabsContent value="diagnostics" className="m-0"><div className="py-8 text-center"><Eye className="mx-auto mb-3 size-5 text-success" /><p className="text-xs font-medium">No issues detected</p><p className="mt-1 text-xs text-muted-foreground">This entity passed all topology checks.</p></div></TabsContent></div></Tabs><div className="border-t border-border px-4 py-2 text-[10px] text-muted-foreground">Press <kbd className="border border-border bg-muted px-1">Esc</kbd> to clear selection</div></div>;
 }
 
 function Tab({ value, label }: { value: string; label: string }) { return <TabsTrigger value={value} title={label} className="h-9 rounded-none border-b-2 border-transparent px-2 text-[10px] data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none">{label}</TabsTrigger>; }
